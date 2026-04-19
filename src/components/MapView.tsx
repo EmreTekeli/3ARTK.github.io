@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, memo } from 'react';
+import React, { useEffect, useRef, useMemo, useState, memo } from 'react';
 import { MapContainer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Navigation } from 'lucide-react';
@@ -206,6 +206,7 @@ const scheduleIdle: (cb: () => void) => void =
     : (cb) => setTimeout(cb, 16);
 
 const CHUNK_SIZE = 40;
+const MAX_VISIBLE_POINTS = 1200;
 
 // Stil sabitleri — normal vs seçili marker
 const NORMAL_STYLE: L.CircleMarkerOptions = {
@@ -325,6 +326,7 @@ function ProjectPoints({
   onSelectPoint?: (pt: ImportedPoint) => void;
 }) {
   const map = useMap();
+  const [viewportVersion, setViewportVersion] = useState(0);
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, L.CircleMarker>>(new Map());
   const pointDataRef = useRef<Map<string, DisplayPoint>>(new Map());
@@ -337,6 +339,28 @@ function ProjectPoints({
   useEffect(() => {
     onSelectPointRef.current = onSelectPoint;
   }, [onSelectPoint]);
+
+  useEffect(() => {
+    const refreshViewport = () => setViewportVersion((v) => v + 1);
+    map.on('moveend zoomend resize', refreshViewport);
+    return () => {
+      map.off('moveend zoomend resize', refreshViewport);
+    };
+  }, [map]);
+
+  const renderPoints = useMemo<DisplayPoint[]>(() => {
+    if (displayPoints.length <= MAX_VISIBLE_POINTS) return displayPoints;
+
+    const paddedBounds = map.getBounds().pad(0.25);
+    const inView = displayPoints.filter((pt) => paddedBounds.contains([pt.displayLat, pt.displayLon]));
+
+    if (inView.length <= MAX_VISIBLE_POINTS) return inView;
+
+    const stride = Math.max(1, Math.ceil(inView.length / MAX_VISIBLE_POINTS));
+    const sampled: DisplayPoint[] = [];
+    for (let i = 0; i < inView.length; i += stride) sampled.push(inView[i]);
+    return sampled;
+  }, [displayPoints, map, viewportVersion]);
 
   // ── Ana effect: layer reuse — displayPoints değişince sadece diff uygula ──
   useEffect(() => {
@@ -351,7 +375,7 @@ function ProjectPoints({
 
     // Yeni display haritası
     const nextKeys = new Set<string>();
-    for (const pt of displayPoints) nextKeys.add(pt.name);
+    for (const pt of renderPoints) nextKeys.add(pt.name);
 
     // Kaldırılan noktaları temizle
     for (const [key, marker] of cache) {
@@ -378,7 +402,7 @@ function ProjectPoints({
 
     // Eklenecek noktaları topla (cache'de olmayanlar)
     const toAdd: DisplayPoint[] = [];
-    for (const pt of displayPoints) {
+    for (const pt of renderPoints) {
       const existing = cache.get(pt.name);
       if (!existing) {
         toAdd.push(pt);
@@ -440,7 +464,7 @@ function ProjectPoints({
     return () => {
       // Pending chunks bump detection via runTokenRef mismatch
     };
-  }, [displayPoints, map]);
+  }, [displayPoints, renderPoints, map]);
 
   // ── Referans değişim effect'i: sadece eski/yeni seçili markerın stilini güncelle ──
   useEffect(() => {

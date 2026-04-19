@@ -61,7 +61,9 @@ export function isProjectedCoordinate(lat: number, lon: number): boolean {
 function detectDomFromEasting(easting: number): { dom: number; stripped: number } {
   if (easting > 1_000_000) {
     const dom = Math.floor(easting / 1_000_000);
-    return { dom, stripped: easting % 1_000_000 };
+    if (dom >= 24 && dom <= 48) {
+      return { dom, stripped: easting % 1_000_000 };
+    }
   }
   return { dom: 0, stripped: easting };
 }
@@ -212,7 +214,8 @@ export function leastSquaresPlaneFit(
     for (let row = col + 1; row < 3; row++) {
       if (Math.abs(A[row][col]) > maxVal) { maxVal = Math.abs(A[row][col]); maxRow = row; }
     }
-    if (maxVal < 1e-10) return null; // Singular — collinear nokta kümesi
+    const relativeTol = 1e-10 * (Math.abs(A[0][0]) + Math.abs(A[1][1]) + Math.abs(A[2][2]) + 1);
+    if (maxVal < relativeTol) return null; // Singular — collinear nokta kümesi
 
     [A[col], A[maxRow]] = [A[maxRow], A[col]];
     for (let row = col + 1; row < 3; row++) {
@@ -478,6 +481,7 @@ function vincentyDistance(lat1: number, lon1: number, lat2: number, lon2: number
 
   // Yakınsama sağlanamadıysa Haversine ile devam et
   if (Math.abs(λ - λPrev) >= 1e-12) {
+    console.warn('Vincenty yakınsamadı, Haversine kullanılıyor. Mesafe hassasiyeti düşük olabilir.');
     const R = 6_378_137;
     const Δφ = (lat2 - lat1) * (Math.PI / 180);
     const Δλ = (lon2 - lon1) * (Math.PI / 180);

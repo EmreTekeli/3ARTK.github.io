@@ -647,6 +647,9 @@ export default function App() {
         }
         if (rtkShouldRunRef.current && serialWriterRef.current) {
           const config = rtkConfigRef.current;
+          if (!config.useTls) {
+            addLog('WARN', 'NTRIP bağlantısı şifrelenmemiş (TLS kapalı). Kimlik bilgileri açık iletiliyor.');
+          }
           socket.send(JSON.stringify({
             type: 'START_NTRIP',
             data: {
@@ -1116,6 +1119,9 @@ export default function App() {
       return;
     }
 
+    if (!profile.useTls) {
+      addLog('WARN', 'NTRIP bağlantısı şifrelenmemiş (TLS kapalı). Kimlik bilgileri açık iletiliyor.');
+    }
     ws.current?.send(JSON.stringify({
       type: 'START_NTRIP',
       data: {

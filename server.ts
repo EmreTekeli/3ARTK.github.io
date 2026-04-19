@@ -44,7 +44,7 @@ function isProductionMode(): boolean {
 }
 
 function isAllowedOrigin(origin: string | undefined, host: string | undefined): boolean {
-  if (!origin) return true;
+  if (!origin) return !isProductionMode();
 
   try {
     const originUrl = new URL(origin);
@@ -79,7 +79,15 @@ function isPrivateOrReservedIp(ip: string): boolean {
 
   if (net.isIPv6(ip)) {
     const lower = ip.toLowerCase();
-    return lower === "::1" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:");
+    const ipv4Mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (ipv4Mapped) return isPrivateOrReservedIp(ipv4Mapped[1]);
+    return (
+      lower === '::1' ||
+      lower.startsWith('fc') || lower.startsWith('fd') ||
+      lower.startsWith('fe80:') ||
+      lower.startsWith('::ffff:') ||
+      lower.startsWith('2001:db8:')
+    );
   }
 
   return true;
@@ -99,7 +107,7 @@ async function validateNtripTarget(host: string, port: number): Promise<string |
   }
 
   if (!NTRIP_ALLOWED_PORTS.has(port)) {
-    return `NTRIP port izinli degil: ${port}`;
+    return 'NTRIP bağlantısı reddedildi.';
   }
 
   if (NTRIP_ALLOWED_HOSTS.size > 0 && !NTRIP_ALLOWED_HOSTS.has(normalizedHost)) {
@@ -151,6 +159,13 @@ function createNtripSession(
   socket.setTimeout(30000);
 
   socket.on('connect', () => {
+    const remoteAddr = socket.remoteAddress || '';
+    if (isPrivateOrReservedIp(remoteAddr)) {
+      socket.destroy();
+      onError('NTRIP bağlantısı güvenlik kontrolünden geçemedi.');
+      return;
+    }
+
     const auth = config.username || config.password
       ? `Authorization: Basic ${Buffer.from(`${config.username || ''}:${config.password || ''}`).toString('base64')}\r\n`
       : '';
@@ -188,7 +203,7 @@ function createNtripSession(
     const ok = /^ICY 200/i.test(firstLine) || /\s200\s/.test(firstLine);
 
     if (!ok) {
-      onError(`NTRIP baglantisi reddedildi: ${firstLine || 'yanit yok'}`);
+      onError('NTRIP caster bağlantıyı reddetti.');
       socket.destroy();
       return;
     }
@@ -230,6 +245,27 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || DEFAULT_PORT);
 
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '0');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+    if (isProductionMode()) {
+      res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+    }
+    res.setHeader('Content-Security-Policy',
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.opentopomap.org; " +
+      "connect-src 'self' ws: wss:; " +
+      "worker-src blob:; " +
+      "font-src 'self' data:"
+    );
+    next();
+  });
+
   app.get('/favicon.ico', (_req, res) => {
     res.status(204).end();
   });
@@ -261,9 +297,12 @@ async function startServer() {
     console.log('Yeni istemci bağlandı.');
 
     let referencePoint: any = null;
-    let targetDistance = 1.50; 
-    let scaleFactor = 1.0; 
+    let targetDistance = 1.50;
+    let scaleFactor = 1.0;
     let ntripSession: NtripSession | null = null;
+    let ntripAttempts = 0;
+    const NTRIP_MAX_ATTEMPTS_PER_MINUTE = 5;
+    let ntripWindowStart = Date.now();
 
     const sendJson = (payload: any) => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -305,10 +344,14 @@ async function startServer() {
         const payload = JSON.parse(messageBuffer.toString('utf8'));
         
         if (payload.type === 'SET_TARGET') {
-          targetDistance = payload.data;
+          const val = Number(payload.data);
+          if (!Number.isFinite(val) || val < 0 || val > 100) return;
+          targetDistance = val;
         }
         else if (payload.type === 'SET_SCALE') {
-          scaleFactor = payload.data;
+          const scale = Number(payload.data);
+          if (!Number.isFinite(scale) || scale < 0.5 || scale > 2.0) return;
+          scaleFactor = scale;
           ws.send(JSON.stringify({ type: 'INFO', message: `Kalibrasyon uygulandı. Yeni çarpan: ${scaleFactor.toFixed(4)}` }));
         }
         else if (payload.type === 'SET_REF') {
@@ -316,6 +359,13 @@ async function startServer() {
           ws.send(JSON.stringify({ type: 'INFO', message: 'Referans noktası sunucuda başarıyla ayarlandı.' }));
         }
         else if (payload.type === 'START_NTRIP') {
+          const now2 = Date.now();
+          if (now2 - ntripWindowStart > 60_000) { ntripAttempts = 0; ntripWindowStart = now2; }
+          if (++ntripAttempts > NTRIP_MAX_ATTEMPTS_PER_MINUTE) {
+            sendJson({ type: 'NTRIP_ERROR', message: 'Çok fazla bağlantı denemesi. Lütfen bekleyin.' });
+            return;
+          }
+
           stopNtrip();
 
           const config = payload.data || {};

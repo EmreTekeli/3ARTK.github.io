@@ -1509,8 +1509,8 @@ export default function App() {
       {/* --- TOP NAVIGATION --- */}
       <header className="field-topbar shrink-0 z-40 safe-top">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="field-brand-mark w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="field-brand-mark w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center relative overflow-hidden">
               <svg viewBox="0 0 40 40" className="w-9 h-9" fill="none" aria-hidden="true">
                 <defs>
                   <linearGradient id="brand-grad" x1="0" y1="0" x2="1" y2="1">
@@ -1541,7 +1541,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-end gap-1 sm:gap-2 min-w-0 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center justify-end gap-0.5 sm:gap-2 min-w-0 overflow-x-auto scrollbar-hide">
             {/* Section toolbar: 6 quick-access panel icons */}
             {([
               { key: 'connection' as SectionKey, icon: Plug, label: 'Bağlantı',
@@ -1574,7 +1574,7 @@ export default function App() {
                   key={key}
                   type="button"
                   onClick={() => setActiveSection(prev => (prev === key ? null : key))}
-                  className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl border transition-all active:scale-95 flex items-center justify-center shrink-0 ${ring}`}
+                  className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-xl border transition-all active:scale-95 flex items-center justify-center shrink-0 ${ring}`}
                   title={label}
                   aria-label={label}
                   aria-pressed={active}
@@ -1591,7 +1591,7 @@ export default function App() {
             {/* Kalibrasyon */}
             <button
               onClick={() => setShowCalibration(true)}
-              className="w-9 h-9 sm:w-10 sm:h-10 bg-indigo-500/10 hover:bg-indigo-500/20 active:bg-indigo-500/30 rounded-xl border border-indigo-500/30 transition-all text-indigo-400 font-bold flex items-center justify-center gap-2 active:scale-95 shrink-0"
+              className="w-8 h-8 sm:w-10 sm:h-10 bg-indigo-500/10 hover:bg-indigo-500/20 active:bg-indigo-500/30 rounded-xl border border-indigo-500/30 transition-all text-indigo-400 font-bold flex items-center justify-center gap-2 active:scale-95 shrink-0"
               title="Cihaz Kalibrasyonu"
               aria-label="Cihaz Kalibrasyonu"
             >
@@ -1600,7 +1600,7 @@ export default function App() {
 
             <button
               onClick={() => setShowLogs(true)}
-              className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-800/80 rounded-xl hover:bg-slate-700 active:bg-slate-600 border border-slate-700 transition-all flex items-center justify-center active:scale-95 shrink-0"
+              className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-800/80 rounded-xl hover:bg-slate-700 active:bg-slate-600 border border-slate-700 transition-all flex items-center justify-center active:scale-95 shrink-0"
               title="Sistem Logları"
               aria-label="Sistem Logları"
             >
@@ -1619,7 +1619,7 @@ export default function App() {
                   window.speechSynthesis.cancel();
                 }
               }}
-              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl border transition-all flex items-center justify-center gap-2 active:scale-95 shrink-0 ${
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl border transition-all flex items-center justify-center gap-2 active:scale-95 shrink-0 ${
                 isVoiceEnabled
                   ? 'bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 text-emerald-400 border-emerald-500/30'
                   : 'bg-slate-800/80 hover:bg-slate-700 active:bg-slate-600 text-slate-400 border-slate-700'

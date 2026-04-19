@@ -1,0 +1,10 @@
+{
+  "name": "SlopeFix RTK",
+  "description": "Slope Corrected Point Positioning System with RTK GNSS integration.",
+  "requestFramePermissions": [
+    "bluetooth",
+    "serial",
+    "usb",
+    "geolocation"
+  ]
+}

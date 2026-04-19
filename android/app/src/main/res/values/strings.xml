@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SlopeFixRTK</string>
+    <string name="title_activity_main">SlopeFixRTK</string>
+    <string name="package_name">com.slopefix.rtk</string>
+    <string name="custom_url_scheme">com.slopefix.rtk</string>
+</resources>

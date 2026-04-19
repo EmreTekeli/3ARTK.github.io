@@ -2195,7 +2195,7 @@ export default function App() {
                   </button>
                   <input 
                     type="file" 
-                    accept=".ncn,.txt,.csv,.dxf"
+                    accept="*/*"
                     className="hidden" 
                     ref={fileInputRef}
                     onChange={handleFileUpload}

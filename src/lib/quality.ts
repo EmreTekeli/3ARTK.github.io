@@ -16,7 +16,7 @@ export const ACCURACY_MODE_LABELS: Record<AccuracyMode, string> = {
 
 export function getMaxSurfaceRms(mode: AccuracyMode): number {
   if (mode === 'RTK_STRICT') return 0.05;
-  if (mode === 'RTK_NORMAL') return 0.10;
+  if (mode === 'RTK_NORMAL') return 0.05;
   return 0.35;
 }
 

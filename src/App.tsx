@@ -165,6 +165,17 @@ export default function App() {
     direction: 'WAITING',
   });
 
+  const [showPoleWarning, setShowPoleWarning] = useState(false);
+  const prevPoleHeightRef = useRef<number>(poleHeight);
+  const prevAccuracyModeRef = useRef<AccuracyMode>(accuracyMode);
+  const ntripConnectTimerRef = useRef<number | null>(null);
+  const [measurementLog, setMeasurementLog] = useState<Array<{
+    timestamp: string; lat: number; lon: number; alt: number;
+    fix: number; hdop: number; satellites: number;
+    surfaceRms: number | null; distanceToTarget: number | null;
+    targetName: string | null;
+  }>>([]);
+
   const ws = useRef<WebSocket | null>(null);
   const wsReconnectTimerRef = useRef<number | null>(null);
   const wsReconnectAttemptRef = useRef(0);
@@ -219,6 +230,47 @@ export default function App() {
   const applyPoleHeightCorrection = useCallback((point: NMEAData): NMEAData => {
     return applyPoleHeightToPoint(point, poleHeightRef.current);
   }, []);
+
+  // --- RTCM / GGA HEARTBEAT ---
+  useEffect(() => {
+    if (rtkStatus === 'OFF' || rtkStatus === 'DISCONNECTED') return;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      const rtcmAge = rtkLastRtcmAt ? now - rtkLastRtcmAt : null;
+      const ggaAge = rtkLastGgaAt ? now - rtkLastGgaAt : null;
+      if (rtcmAge !== null && rtcmAge > 30_000) {
+        addLog('WARN', 'RTCM verisi 30 saniyedir gelmiyor. RTK bağlantısı kesiliyor.');
+        stopRtkCorrection();
+      } else if (rtcmAge !== null && rtcmAge > 5_000) {
+        setRtkMessage(`RTCM verisi ${Math.floor(rtcmAge / 1000)}s gecikmiş — bağlantı zayıf.`);
+      }
+      if (ggaAge !== null && ggaAge > 15_000) {
+        addLog('WARN', 'Cihazdan 15s GGA alınamadı. Konum sinyali yok.');
+      }
+    }, 2000);
+    return () => window.clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rtkStatus, rtkLastRtcmAt, rtkLastGgaAt]);
+
+  // --- JALON YÜKSEKLİĞİ DEĞİŞİM UYARISI ---
+  useEffect(() => {
+    if (prevPoleHeightRef.current !== poleHeight && referencePoint && hydratedRef.current) {
+      setShowPoleWarning(true);
+    }
+    prevPoleHeightRef.current = poleHeight;
+  }, [poleHeight, referencePoint]);
+
+  // --- KALİBRASYON SIFIRLAMA (TEST → RTK geçişi) ---
+  useEffect(() => {
+    if (prevAccuracyModeRef.current === 'TEST' && accuracyMode !== 'TEST') {
+      if (calibScale !== 1.0) {
+        setCalibScale(1.0);
+        addLog('INFO', 'RTK moduna geçildi — kalibrasyon katsayısı sıfırlandı.');
+      }
+    }
+    prevAccuracyModeRef.current = accuracyMode;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accuracyMode]);
 
   // --- CALIBRATION STATE ---
   const [showCalibration, setShowCalibration] = useState(false);
@@ -315,10 +367,40 @@ export default function App() {
     addLog('INFO', 'Loglar başarıyla dışa aktarıldı.');
   };
 
+  const handleExportCSV = () => {
+    if (measurementLog.length === 0) {
+      showNotification('Henüz kaydedilmiş ölçüm yok.', 'info');
+      return;
+    }
+    const header = 'Zaman,Enlem,Boylam,Yukseklik(m),Fix,HDOP,Uydu,YuzeyRMS(m),Mesafe(m),Hedef';
+    const rows = measurementLog.map(r =>
+      [r.timestamp, r.lat.toFixed(8), r.lon.toFixed(8), r.alt.toFixed(4),
+       r.fix, r.hdop.toFixed(2), r.satellites,
+       r.surfaceRms?.toFixed(4) ?? '', r.distanceToTarget?.toFixed(4) ?? '',
+       r.targetName ?? ''].join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `slopefix_olcumler_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addLog('INFO', `${measurementLog.length} ölçüm CSV olarak dışa aktarıldı.`);
+  };
+
   const formatAge = (timestamp: number | null) => {
     if (!timestamp) return '-';
     const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
     return `${seconds}s`;
+  };
+
+  const displayFixLabel = (fix: number, connType: typeof connectionType) => {
+    if (connType === 'SIMULATOR') return { label: 'Telefon GPS (~5m)', color: '#94a3b8' };
+    return getFixLabel(fix);
   };
 
   const buildImportSummary = (fileName: string, points: ImportedPoint[], parserWarnings: string[] = []): ImportSummary => {
@@ -380,16 +462,9 @@ export default function App() {
         const { parseDXF } = await import('./lib/cadParser');
         points = parseDXF(text);
       } else if (ext === 'dwg' || ext === 'ncz') {
-        addLog('INFO', `${ext.toUpperCase()} dosyasından koordinatlar taranıyor... (Deneysel)`);
-        const { parseBinaryCAD } = await import('./lib/cadParser');
-        points = await parseBinaryCAD(file);
-        
-        if (points.length === 0) {
-          addLog('ERROR', `${ext.toUpperCase()} ayrıştırması başarısız oldu. Binary kodlu format.`);
-          showNotification(`${ext.toUpperCase()} dosyasından koordinat okunamadı (Tamamen şifreli). Lütfen CAD programından DXF veya NCN olarak kaydedin.`, 'error');
-          if (fileInputRef.current) fileInputRef.current.value = '';
-          return;
-        }
+        showNotification('DWG/NCZ formatı desteklenmiyor. Lütfen DXF veya NCN formatında kaydedin.', 'error');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
       } else {
         showNotification('Desteklenmeyen dosya formatı.', 'error');
         return;
@@ -659,6 +734,13 @@ export default function App() {
             },
             gga: lastGgaSentenceRef.current,
           }));
+          ntripConnectTimerRef.current = window.setTimeout(() => {
+            if (rtkStatusRef.current === 'CONNECTING') {
+              addLog('ERROR', 'NTRIP bağlantısı 10 saniyede yanıt vermedi.');
+              stopRtkCorrection();
+              showNotification('NTRIP zaman aşımı. Lütfen ayarları kontrol edin.', 'error');
+            }
+          }, 10_000);
         }
       };
 
@@ -675,6 +757,10 @@ export default function App() {
           } else if (payload.type === 'ERROR') {
             addLog('ERROR', payload.message);
           } else if (payload.type === 'NTRIP_STATUS') {
+            if (ntripConnectTimerRef.current !== null) {
+              window.clearTimeout(ntripConnectTimerRef.current);
+              ntripConnectTimerRef.current = null;
+            }
             setRtkStatus((payload.status || 'OFF') as RtkStatus);
             setRtkMessage(payload.message || '');
             addLog('INFO', `NTRIP: ${payload.message || payload.status}`);
@@ -924,6 +1010,17 @@ export default function App() {
     };
 
     setMetrics(newMetrics);
+
+    // Ölçüm kaydı (son 1000 örnek)
+    setMeasurementLog(prev => [...prev.slice(-999), {
+      timestamp: new Date().toISOString(),
+      lat: current.lat, lon: current.lon, alt: current.alt,
+      fix: current.fix, hdop: current.hdop, satellites: current.satellites,
+      surfaceRms: baseMetrics.residualRMS > 0 ? baseMetrics.residualRMS : null,
+      distanceToTarget: scaledPlane2D,
+      targetName: (targetMode === 'POINT' && selectedNCNTarget) ? selectedNCNTarget.name : null,
+    }]);
+
     speakGuidance({
       direction: newMetrics.direction,
       qualityOk: newMetrics.qualityOk,
@@ -1041,6 +1138,10 @@ export default function App() {
     if (ntripGgaTimerRef.current !== null) {
       window.clearInterval(ntripGgaTimerRef.current);
       ntripGgaTimerRef.current = null;
+    }
+    if (ntripConnectTimerRef.current !== null) {
+      window.clearTimeout(ntripConnectTimerRef.current);
+      ntripConnectTimerRef.current = null;
     }
 
     if (nativeAndroidGnss) {
@@ -1588,7 +1689,8 @@ export default function App() {
             {/* Divider */}
             <span className="hidden sm:inline-block w-px h-6 bg-slate-700/70 mx-1" aria-hidden="true" />
 
-            {/* Kalibrasyon */}
+            {/* Kalibrasyon — sadece TEST modunda */}
+            {accuracyMode === 'TEST' && (
             <button
               onClick={() => setShowCalibration(true)}
               className="w-9 h-9 sm:w-10 sm:h-10 bg-indigo-500/10 hover:bg-indigo-500/20 active:bg-indigo-500/30 rounded-xl border border-indigo-500/30 transition-all text-indigo-400 font-bold flex items-center justify-center gap-2 active:scale-95 shrink-0"
@@ -1597,6 +1699,7 @@ export default function App() {
             >
               <Ruler className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
+            )}
 
             <button
               onClick={() => setShowLogs(true)}
@@ -2007,7 +2110,11 @@ export default function App() {
                     GGA: <span className="text-slate-300">{formatAge(rtkLastGgaAt)}</span>
                   </div>
                   <div className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
-                    RTCM: <span className="text-slate-300">{formatAge(rtkLastRtcmAt)}</span>
+                    RTCM: <span className={
+                      rtkLastRtcmAt && Date.now() - rtkLastRtcmAt > 30_000 ? 'text-rose-600 animate-pulse' :
+                      rtkLastRtcmAt && Date.now() - rtkLastRtcmAt > 5_000 ? 'text-rose-400' :
+                      'text-slate-300'
+                    }>{formatAge(rtkLastRtcmAt)}</span>
                   </div>
                   <div className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
                     Fixed: <span className="text-slate-300">{formatAge(rtkFixedSince)}</span>
@@ -2082,7 +2189,7 @@ export default function App() {
                   </button>
                   <input 
                     type="file" 
-                    accept="*/*"
+                    accept=".ncn,.txt,.csv,.dxf"
                     className="hidden" 
                     ref={fileInputRef}
                     onChange={handleFileUpload}
@@ -2388,7 +2495,7 @@ export default function App() {
               )}
               {/* RTK Fix Kalitesi */}
               {currentPoint && (() => {
-                const fix = getFixLabel((currentPoint as any).fix ?? 1);
+                const fix = displayFixLabel((currentPoint as any).fix ?? 1, connectionType);
                 return (
                   <div className="flex items-center gap-2">
                     <span className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400 font-bold">FIX</span>
@@ -2420,6 +2527,35 @@ export default function App() {
              notification.type === 'error' ? <X className="w-5 h-5 shrink-0" /> :
              <Activity className="w-5 h-5 shrink-0" />}
             <p className="text-sm font-medium leading-tight">{notification.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* --- JALON YÜKSEKLIK UYARI MODALI --- */}
+      {showPoleWarning && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 w-full max-w-sm rounded-2xl shadow-2xl border border-amber-500/30 overflow-hidden">
+            <div className="p-5">
+              <p className="text-amber-400 font-bold text-base">⚠ Jalon Yüksekliği Değişti</p>
+              <p className="text-slate-300 text-sm mt-2">
+                P1 referans noktası eski yükseklikle alındı. Ölçüm hatalarını önlemek için P1'i yeniden alın.
+              </p>
+            </div>
+            <div className="flex border-t border-slate-700">
+              <button
+                onClick={() => { setReferencePoint(null); setShowPoleWarning(false); }}
+                className="flex-1 py-3 text-sm font-bold text-rose-400 hover:bg-rose-500/10 transition-colors"
+              >
+                P1'i Temizle
+              </button>
+              <div className="w-px bg-slate-700" />
+              <button
+                onClick={() => setShowPoleWarning(false)}
+                className="flex-1 py-3 text-sm font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+              >
+                Yok Say
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2527,7 +2663,14 @@ export default function App() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 px-3 py-2 bg-emerald-900/40 hover:bg-emerald-800/50 text-emerald-300 text-xs font-bold rounded-xl transition-colors border border-emerald-700/50"
+                  title="Ölçümleri CSV olarak indir"
+                >
+                  <Download className="w-4 h-4" /> <span className="hidden sm:inline">CSV</span>
+                </button>
+                <button
                   onClick={handleExportLogs}
                   className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-colors border border-slate-700"
                 >

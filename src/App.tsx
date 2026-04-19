@@ -492,6 +492,18 @@ export default function App() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleClearImportedPoints = () => {
+    setImportedPoints([]);
+    setImportSummary(null);
+    setSurfaceAdjustedPoints([]);
+    setSelectedNCNTarget(null);
+    setSlopeCorrectedTarget(null);
+    setTargetMode('DISTANCE');
+    addLog('INFO', 'Yuklenen proje noktalari temizlendi.');
+    showNotification('Yuklenen noktalar silindi. Yeni dosya yukleyebilirsiniz.', 'success');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   /**
    * Haritadan veya listeden NCN noktası seçildiğinde:
    *  1. Ham NCN noktasını sakla (düz zemin koordinatı)
@@ -2193,6 +2205,16 @@ export default function App() {
                   >
                     <Upload className="w-4 h-4" /> Proje Yükle (.ncn, .dxf)
                   </button>
+                  {importedPoints.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearImportedPoints}
+                      className="px-3 py-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-colors"
+                      title="Yuklenen noktaları temizle"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   <input 
                     type="file" 
                     accept="*/*"

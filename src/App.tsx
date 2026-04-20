@@ -108,7 +108,14 @@ export default function App() {
   const [rtkFixedSince, setRtkFixedSince] = useState<number | null>(null);
   const rtkBytesRef = useRef(0);
   const rtkBytesSampleRef = useRef({ bytes: 0, at: Date.now() });
-  
+  const rtkReconnectTimerRef = useRef<number | null>(null);
+  const rtkReconnectAttemptRef = useRef(0);
+  const scheduleRtkReconnectRef = useRef<(() => void) | null>(null);
+  const bleDeviceRef = useRef<any>(null);
+  const bleServerRef = useRef<any>(null);
+  const bleTxCharRef = useRef<any>(null);
+  const bleRxCharRef = useRef<any>(null);
+
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -230,27 +237,6 @@ export default function App() {
   const applyPoleHeightCorrection = useCallback((point: NMEAData): NMEAData => {
     return applyPoleHeightToPoint(point, poleHeightRef.current);
   }, []);
-
-  // --- RTCM / GGA HEARTBEAT ---
-  useEffect(() => {
-    if (rtkStatus === 'OFF' || rtkStatus === 'DISCONNECTED') return;
-    const interval = window.setInterval(() => {
-      const now = Date.now();
-      const rtcmAge = rtkLastRtcmAt ? now - rtkLastRtcmAt : null;
-      const ggaAge = rtkLastGgaAt ? now - rtkLastGgaAt : null;
-      if (rtcmAge !== null && rtcmAge > 30_000) {
-        addLog('WARN', 'RTCM verisi 30 saniyedir gelmiyor. RTK bağlantısı kesiliyor.');
-        stopRtkCorrection();
-      } else if (rtcmAge !== null && rtcmAge > 5_000) {
-        setRtkMessage(`RTCM verisi ${Math.floor(rtcmAge / 1000)}s gecikmiş — bağlantı zayıf.`);
-      }
-      if (ggaAge !== null && ggaAge > 15_000) {
-        addLog('WARN', 'Cihazdan 15s GGA alınamadı. Konum sinyali yok.');
-      }
-    }, 2000);
-    return () => window.clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rtkStatus, rtkLastRtcmAt, rtkLastGgaAt]);
 
   // --- JALON YÜKSEKLİĞİ DEĞİŞİM UYARISI ---
   useEffect(() => {
@@ -776,13 +762,24 @@ export default function App() {
               window.clearTimeout(ntripConnectTimerRef.current);
               ntripConnectTimerRef.current = null;
             }
-            setRtkStatus((payload.status || 'OFF') as RtkStatus);
+            const ntripStatus = (payload.status || 'OFF') as RtkStatus;
+            setRtkStatus(ntripStatus);
             setRtkMessage(payload.message || '');
             addLog('INFO', `NTRIP: ${payload.message || payload.status}`);
+            if (ntripStatus === 'CONNECTED' || ntripStatus === 'FLOAT' || ntripStatus === 'FIXED') {
+              rtkReconnectAttemptRef.current = 0;
+              if (rtkReconnectTimerRef.current !== null) {
+                window.clearTimeout(rtkReconnectTimerRef.current);
+                rtkReconnectTimerRef.current = null;
+              }
+            } else if (ntripStatus === 'DISCONNECTED') {
+              scheduleRtkReconnectRef.current?.();
+            }
           } else if (payload.type === 'NTRIP_ERROR') {
             setRtkStatus('ERROR');
             setRtkMessage(payload.message || 'NTRIP hatasi.');
             addLog('ERROR', `NTRIP: ${payload.message || 'Bilinmeyen hata'}`);
+            scheduleRtkReconnectRef.current?.();
           } else if (payload.type === 'RTCM') {
             const writer = serialWriterRef.current;
             if (!writer) {
@@ -1150,6 +1147,11 @@ export default function App() {
 
   const stopRtkCorrection = () => {
     rtkShouldRunRef.current = false;
+    rtkReconnectAttemptRef.current = 0;
+    if (rtkReconnectTimerRef.current !== null) {
+      window.clearTimeout(rtkReconnectTimerRef.current);
+      rtkReconnectTimerRef.current = null;
+    }
     if (ntripGgaTimerRef.current !== null) {
       window.clearInterval(ntripGgaTimerRef.current);
       ntripGgaTimerRef.current = null;
@@ -1212,6 +1214,7 @@ export default function App() {
 
     setRtkStatus('CONNECTING');
     rtkShouldRunRef.current = true;
+    rtkReconnectAttemptRef.current = 0;
     setRtkBytes(0);
     rtkBytesSampleRef.current = { bytes: 0, at: Date.now() };
     setRtkBytesPerSecond(0);
@@ -1251,8 +1254,83 @@ export default function App() {
     if (ntripGgaTimerRef.current !== null) {
       window.clearInterval(ntripGgaTimerRef.current);
     }
-    ntripGgaTimerRef.current = window.setInterval(sendGgaToNtrip, 5000);
+    ntripGgaTimerRef.current = window.setInterval(sendGgaToNtrip, profile.sendGgaIntervalMs);
   };
+
+  const scheduleRtkReconnect = useCallback(() => {
+    if (!rtkShouldRunRef.current) return;
+    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
+    if (rtkReconnectTimerRef.current !== null) {
+      window.clearTimeout(rtkReconnectTimerRef.current);
+    }
+    const MAX_ATTEMPTS = 5;
+    if (rtkReconnectAttemptRef.current >= MAX_ATTEMPTS) {
+      setRtkStatus('ERROR');
+      setRtkMessage('Otomatik yeniden bağlantı başarısız. Lütfen manuel başlatın.');
+      showNotification('NTRIP otomatik yeniden bağlantı başarısız.', 'error');
+      return;
+    }
+    const delay = Math.min(5000 * Math.pow(2, rtkReconnectAttemptRef.current), 30_000);
+    rtkReconnectAttemptRef.current += 1;
+    setRtkMessage(`NTRIP yeniden bağlanılıyor... (${Math.round(delay / 1000)}s, deneme ${rtkReconnectAttemptRef.current}/${MAX_ATTEMPTS})`);
+    addLog('INFO', `NTRIP yeniden bağlantı ${Math.round(delay / 1000)}s sonra (deneme ${rtkReconnectAttemptRef.current}/${MAX_ATTEMPTS}).`);
+    rtkReconnectTimerRef.current = window.setTimeout(() => {
+      rtkReconnectTimerRef.current = null;
+      if (!rtkShouldRunRef.current) return;
+      if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
+      const config = rtkConfigRef.current;
+      setRtkStatus('CONNECTING');
+      ws.current.send(JSON.stringify({
+        type: 'START_NTRIP',
+        data: {
+          host: config.host.trim(),
+          port: Number(config.port || 2101),
+          mountPoint: config.mountPoint.trim(),
+          username: config.username,
+          password: config.password,
+          useTls: config.useTls,
+        },
+        gga: lastGgaSentenceRef.current,
+      }));
+      if (ntripConnectTimerRef.current !== null) window.clearTimeout(ntripConnectTimerRef.current);
+      ntripConnectTimerRef.current = window.setTimeout(() => {
+        if (rtkStatusRef.current === 'CONNECTING') scheduleRtkReconnectRef.current?.();
+      }, 10_000);
+    }, delay);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { scheduleRtkReconnectRef.current = scheduleRtkReconnect; }, [scheduleRtkReconnect]);
+
+  // --- RTCM / GGA HEARTBEAT ---
+  useEffect(() => {
+    if (rtkStatus === 'OFF' || rtkStatus === 'DISCONNECTED') return;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      const rtcmAge = rtkLastRtcmAt ? now - rtkLastRtcmAt : null;
+      const ggaAge = rtkLastGgaAt ? now - rtkLastGgaAt : null;
+      if (rtcmAge !== null && rtcmAge > 30_000) {
+        if (rtkShouldRunRef.current && ws.current?.readyState === WebSocket.OPEN) {
+          addLog('WARN', 'RTCM 30s gelmedi. NTRIP oturumu yenileniyor.');
+          ws.current.send(JSON.stringify({ type: 'STOP_NTRIP' }));
+          setRtkStatus('DISCONNECTED');
+          setRtkMessage('RTCM zaman aşımı — yeniden bağlanılıyor...');
+          setRtkLastRtcmAt(null);
+          scheduleRtkReconnectRef.current?.();
+        } else {
+          addLog('WARN', 'RTCM verisi 30 saniyedir gelmiyor. RTK bağlantısı kesiliyor.');
+          stopRtkCorrection();
+        }
+      } else if (rtcmAge !== null && rtcmAge > 5_000) {
+        setRtkMessage(`RTCM verisi ${Math.floor(rtcmAge / 1000)}s gecikmiş — bağlantı zayıf.`);
+      }
+      if (ggaAge !== null && ggaAge > 15_000) {
+        addLog('WARN', 'Cihazdan 15s GGA alınamadı. Konum sinyali yok.');
+      }
+    }, 2000);
+    return () => window.clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rtkStatus, rtkLastRtcmAt, rtkLastGgaAt]);
 
   const applyTusagaPreset = () => {
     setRtkConfig(prev => ({
@@ -1272,6 +1350,13 @@ export default function App() {
       await SlopeFixGnss.disconnectDevice().catch(() => {});
     }
     if (readerRef.current) await readerRef.current.cancel().catch(() => {});
+    if (bleServerRef.current?.connected) {
+      try { bleServerRef.current.disconnect(); } catch {}
+    }
+    bleDeviceRef.current = null;
+    bleServerRef.current = null;
+    bleTxCharRef.current = null;
+    bleRxCharRef.current = null;
     if (serialWriterRef.current) {
       try {
         serialWriterRef.current.releaseLock();
@@ -1515,35 +1600,127 @@ export default function App() {
       showNotification('Tarayıcınız Web Bluetooth API desteklemiyor. Lütfen Chrome kullanın.', 'error');
       return;
     }
+
+    const NORDIC_UART_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const NORDIC_UART_TX      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // cihaz→tarayıcı (notify)
+    const NORDIC_UART_RX      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // tarayıcı→cihaz (write)
+
     try {
+      if (isConnected) await disconnectDevice();
+
       // @ts-ignore
-      const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['generic_access'] 
+      let device: any;
+      try {
+        // @ts-ignore
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [NORDIC_UART_SERVICE] }],
+          optionalServices: [NORDIC_UART_SERVICE],
+        });
+      } catch (filterErr: any) {
+        if (filterErr.name === 'NotFoundError' || filterErr.message?.includes('User cancelled')) throw filterErr;
+        addLog('INFO', 'Filtreli BLE tarama başarısız, geniş tarama deneniyor...');
+        // @ts-ignore
+        device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [NORDIC_UART_SERVICE],
+        });
+      }
+
+      addLog('INFO', `BLE cihazı seçildi: ${device.name || device.id}`);
+      bleDeviceRef.current = device;
+
+      const server = await device.gatt.connect();
+      bleServerRef.current = server;
+      addLog('INFO', 'BLE GATT sunucusuna bağlanıldı.');
+
+      const service = await server.getPrimaryService(NORDIC_UART_SERVICE);
+      const txChar = await service.getCharacteristic(NORDIC_UART_TX);
+      const rxChar = await service.getCharacteristic(NORDIC_UART_RX);
+      bleTxCharRef.current = txChar;
+      bleRxCharRef.current = rxChar;
+
+      await txChar.startNotifications();
+
+      let nmeaBuffer = '';
+      const decoder = new TextDecoder();
+      txChar.addEventListener('characteristicvaluechanged', (event: any) => {
+        nmeaBuffer += decoder.decode((event.target.value as DataView).buffer, { stream: true });
+        const lines = nmeaBuffer.split('\n');
+        nmeaBuffer = lines.pop() ?? '';
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (line.startsWith('$GNGGA') || line.startsWith('$GPGGA')) {
+            lastGgaSentenceRef.current = line;
+            const parsed = parseNMEA(line);
+            if (parsed) {
+              const corrected = applyPoleHeightCorrection(parsed);
+              setCurrentPoint(corrected);
+              if (
+                rtkShouldRunRef.current &&
+                rtkStatusRef.current !== 'ERROR' &&
+                rtkStatusRef.current !== 'DISCONNECTED' &&
+                rtkStatusRef.current !== 'OFF'
+              ) {
+                const derived = getFixDerivedRtkStatus(corrected, rtkStatusRef.current);
+                if (derived === 'FIXED' || derived === 'FLOAT') setRtkStatus(derived);
+              }
+            }
+          }
+        }
       });
-      addLog('INFO', `BLE Cihazı seçildi: ${device.name}`);
-      showNotification(`Cihaz seçildi: ${device.name}. Çoğu RTK cihazı COM Port üzerinden çalışır, veri gelmezse diğer seçeneği deneyin.`, 'info');
+
+      // RTCM byte'larını 20-byte BLE chunk'larıyla cihaza yaz
+      const BLE_MTU = 20;
+      serialWriterRef.current = {
+        write: async (bytes: Uint8Array) => {
+          const char = bleRxCharRef.current;
+          if (!char) throw new Error('BLE RX karakteristiği hazır değil.');
+          for (let offset = 0; offset < bytes.length; offset += BLE_MTU) {
+            await char.writeValueWithoutResponse(bytes.slice(offset, offset + BLE_MTU));
+          }
+        },
+        releaseLock: () => {},
+      } as any;
+
+      device.addEventListener('gattserverdisconnected', () => {
+        addLog('WARN', 'BLE cihazı bağlantıyı kesti.');
+        serialWriterRef.current = null;
+        bleServerRef.current = null;
+        bleTxCharRef.current = null;
+        bleRxCharRef.current = null;
+        setIsConnected(false);
+        setConnectionType('NONE');
+        if (rtkShouldRunRef.current) {
+          setRtkStatus('DISCONNECTED');
+          setRtkMessage('BLE bağlantısı kesildi — yeniden deneniyor...');
+          scheduleRtkReconnectRef.current?.();
+        }
+      });
+
+      setIsConnected(true);
+      setConnectionType('SERIAL');
+      setIsSimulationMode(false);
+      addLog('INFO', `BLE NUS bağlandı: ${device.name || device.id}`);
+      showNotification(`BLE RTK cihazı bağlandı: ${device.name || device.id}`, 'success');
+
     } catch (error: any) {
-      console.error(error);
-      
-      if (error.message && (error.message.includes('User cancelled') || error.message.includes('No Bluetooth adapter'))) {
+      if (error.name === 'NotFoundError' || error.message?.includes('User cancelled')) {
         addLog('INFO', 'BLE cihaz seçimi iptal edildi.');
         return;
       }
-      
-      if (error.message && error.message.includes('globally disabled')) {
-        addLog('INFO', 'Web Bluetooth devre dışı.');
-        showNotification('Web Bluetooth özelliği tarayıcınızda veya bu pencerede devre dışı. Lütfen "USB/Bluetooth (COM)" seçeneğini deneyin veya uygulamayı tam ekranda açın.', 'info');
+      if (error.message?.includes('globally disabled')) {
+        showNotification('Web Bluetooth bu pencerede devre dışı. Uygulamayı tam ekranda açın.', 'info');
         return;
       }
-
-      addLog('ERROR', 'BLE bağlantı hatası', error);
-      
-      if (error.message && error.message.includes('permissions policy')) {
-        showNotification('Tarayıcı güvenlik kısıtlaması! Lütfen sağ üstteki "Yeni Sekmede Aç" butonuna tıklayarak uygulamayı tam ekranda açın.', 'error');
-      } else {
-        showNotification(`BLE Hatası: ${error.message || 'Bağlantı iptal edildi'}`, 'error');
+      if (error.message?.includes('permissions policy')) {
+        showNotification('Tarayıcı güvenlik kısıtlaması! Sağ üstteki "Yeni Sekmede Aç" butonuna tıklayın.', 'error');
+        return;
       }
+      addLog('ERROR', 'BLE GATT bağlantı hatası', error);
+      showNotification(`BLE Hatası: ${error.message || 'Bağlantı başarısız'}`, 'error');
+      serialWriterRef.current = null;
+      setIsConnected(false);
+      setConnectionType('NONE');
     }
   };
 

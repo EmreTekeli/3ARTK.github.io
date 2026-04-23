@@ -2038,110 +2038,142 @@ export default function App() {
             {activeSection === 'connection' && (
             <>
             {/* 1. BAĞLANTI (CONNECTION) */}
-            <div className={`bg-slate-900/80 border ${!isConnected ? 'border-sky-500/50 ring-1 ring-sky-500/30' : 'border-emerald-500/30'} rounded-2xl p-3 shadow-lg backdrop-blur-sm transition-all duration-300`}>
-              <h2 className="text-xs font-bold text-white mb-2 flex items-center justify-between gap-2">
-                <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] ${!isConnected ? 'bg-sky-500 text-white' : 'bg-emerald-500 text-white'}`}>1</span>
-                Cihaz Bağlantısı
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${isConnected ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-slate-950 text-slate-500 border-slate-800'}`}>{connectionTitle}</span>
-              </h2>
-              
+            <div className={`bg-slate-900/72 border ${!isConnected ? 'border-slate-800' : 'border-emerald-500/25'} rounded-2xl p-3 shadow-md backdrop-blur-sm transition-all duration-300`}>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-bold text-white">Baglanti</h2>
+                  <p className="text-[11px] text-slate-400">Olcum kaynagini secin.</p>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${isConnected ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-slate-800 bg-slate-950 text-slate-500'}`}>
+                  {connectionTitle}
+                </span>
+              </div>
+
               {isConnected ? (
-                <div className="grid grid-cols-[1fr_44px] gap-2">
-                  <div className="flex items-center justify-between px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl min-w-0">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span className="text-xs font-bold text-emerald-400 truncate">
-                        {connectionType === 'SIMULATOR' ? 'Test (Telefon GPS) Aktif' : 'Cihaz Bağlı'}
-                      </span>
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-3">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-emerald-300">
+                          {connectionType === 'SIMULATOR' ? 'Telefon GPS aktif' : 'Baglanti hazir'}
+                        </p>
+                        <p className="truncate text-[11px] text-emerald-100/60">{connectionTitle}</p>
+                      </div>
                     </div>
                   </div>
-                  <button onClick={disconnectDevice} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-bold transition-all border border-slate-700">Bağlantıyı Kes</button>
+                  <button
+                    onClick={disconnectDevice}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-200 transition-all hover:bg-slate-700"
+                  >
+                    Baglantiyi Kes
+                  </button>
                 </div>
               ) : (
-                <div className="flex flex-col gap-2">
-                  {/* Baud Rate Seçici */}
-                  {nativeAndroidGnss && (
+                <div className="space-y-3">
+                  {nativeAndroidGnss ? (
                     <>
-                      <div className="grid grid-cols-[1fr_96px] gap-2">
-                        <select
-                          value={selectedAndroidDevice}
-                          onChange={(e) => setSelectedAndroidDevice(e.target.value)}
-                          onFocus={() => {
-                            if (androidDevices.length === 0) void refreshAndroidBluetoothDevices();
-                          }}
-                          className="bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 px-3 py-3 focus:outline-none focus:border-sky-500"
-                        >
-                          <option value="">RTK cihaz sec</option>
-                          {androidDevices.map(device => (
-                            <option key={device.address} value={device.address}>{device.name || device.address}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={refreshAndroidBluetoothDevices}
-                          className="touch-target bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700"
-                        >
-                          Eslesmisleri Yenile
-                        </button>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Bluetooth Cihaz</label>
+                        <div className="grid grid-cols-[1fr_auto] gap-2">
+                          <select
+                            value={selectedAndroidDevice}
+                            onChange={(e) => setSelectedAndroidDevice(e.target.value)}
+                            onFocus={() => {
+                              if (androidDevices.length === 0) void refreshAndroidBluetoothDevices();
+                            }}
+                            className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="">RTK cihaz sec</option>
+                            {androidDevices.map(device => (
+                              <option key={device.address} value={device.address}>{device.name || device.address}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={refreshAndroidBluetoothDevices}
+                            className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 text-[11px] font-semibold text-slate-300 transition-all hover:bg-slate-900"
+                          >
+                            Yenile
+                          </button>
+                        </div>
                       </div>
+
                       <button
                         onClick={handleConnectAndroidBluetooth}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-slate-800 hover:bg-sky-600/20 rounded-xl hover:border-sky-500/50 border border-slate-700 transition-all text-left group"
+                        className="w-full rounded-2xl border border-sky-500/25 bg-sky-500/10 px-3 py-3 text-left transition-all hover:bg-sky-500/15"
                       >
-                        <div>
-                          <p className="text-sm font-bold text-white group-hover:text-sky-400 transition-colors">Android Bluetooth SPP</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">RTK alicisindan NMEA oku, RTCM yaz</p>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">Android Bluetooth SPP</p>
+                            <p className="mt-0.5 text-[11px] text-slate-400">RTK cihaza dogrudan baglan</p>
+                          </div>
+                          <Bluetooth className="h-4 w-4 shrink-0 text-sky-300" />
                         </div>
-                        <Bluetooth className="w-4 h-4 text-slate-500 group-hover:text-sky-400" />
                       </button>
                     </>
-                  )}
-                  {!nativeAndroidGnss && (
+                  ) : (
                     <>
-                  <div className="flex items-center gap-2 mb-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest shrink-0">Baud Rate</label>
-                    <select
-                      value={baudRate}
-                      onChange={(e) => setBaudRate(Number(e.target.value))}
-                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg text-xs font-mono text-slate-300 px-2 py-1.5 focus:outline-none focus:border-sky-500"
-                    >
-                      <option value={9600}>9600</option>
-                      <option value={38400}>38400 (Önerilen)</option>
-                      <option value={57600}>57600</option>
-                      <option value={115200}>115200</option>
-                    </select>
-                  </div>
-                  <button 
-                    onClick={handleConnectSerial}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-slate-800 hover:bg-sky-600/20 border-b lg:border-none lg:rounded-t-xl hover:border-sky-500/50 border-slate-700 transition-all text-left group"
-                  >
-                    <div>
-                      <p className="text-sm font-bold text-white group-hover:text-sky-400 transition-colors">USB / Bluetooth (COM)</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Eşleştirilmiş RTK donanımları</p>
-                    </div>
-                    <Usb className="w-4 h-4 text-slate-500 group-hover:text-sky-400" />
-                  </button>
-                  <button 
-                    onClick={handleConnectBLE}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-slate-800 hover:bg-indigo-600/20 border-b lg:border-none hover:border-indigo-500/50 border-slate-700 transition-all text-left group"
-                  >
-                    <div>
-                      <p className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">Bluetooth LE Taraması</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Harman / Android dahil BLE cihazları</p>
-                    </div>
-                    <Bluetooth className="w-4 h-4 text-slate-500 group-hover:text-indigo-400" />
-                  </button>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Baglanti Secenekleri</label>
+                        <div className="grid gap-2">
+                          <button
+                            onClick={handleConnectSerial}
+                            className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-3 py-3 text-left transition-all hover:border-sky-500/40 hover:bg-sky-500/8"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">USB / COM</p>
+                                <p className="mt-0.5 text-[11px] text-slate-400">Kablolu veya eslesmis seri cihaz</p>
+                              </div>
+                              <Usb className="h-4 w-4 shrink-0 text-sky-300" />
+                            </div>
+                          </button>
+
+                          <button
+                            onClick={handleConnectBLE}
+                            className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-3 py-3 text-left transition-all hover:border-indigo-500/40 hover:bg-indigo-500/8"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">Bluetooth LE</p>
+                                <p className="mt-0.5 text-[11px] text-slate-400">Yakindaki BLE cihazlari tara</p>
+                              </div>
+                              <Bluetooth className="h-4 w-4 shrink-0 text-indigo-300" />
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Baud</label>
+                          <select
+                            value={baudRate}
+                            onChange={(e) => setBaudRate(Number(e.target.value))}
+                            className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-sky-500"
+                          >
+                            <option value={9600}>9600</option>
+                            <option value={38400}>38400</option>
+                            <option value={57600}>57600</option>
+                            <option value={115200}>115200</option>
+                          </select>
+                        </div>
+                      </div>
                     </>
                   )}
-                  <button 
+
+                  <button
                     onClick={handlePhoneGPS}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-slate-800 hover:bg-emerald-600/20 lg:rounded-b-xl hover:border-emerald-500/50 border border-transparent transition-all text-left group"
+                    className="w-full rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-3 text-left transition-all hover:bg-emerald-500/14"
                   >
-                    <div>
-                      <p className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">Telefon GPS (Test)</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Donanımsız yönlendirme testi</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Telefon GPS</p>
+                        <p className="mt-0.5 text-[11px] text-slate-400">Hizli test ve demo modu</p>
+                      </div>
+                      <Crosshair className="h-4 w-4 shrink-0 text-emerald-300" />
                     </div>
-                    <Crosshair className="w-4 h-4 text-slate-500 group-hover:text-emerald-400" />
                   </button>
                 </div>
               )}

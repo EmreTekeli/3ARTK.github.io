@@ -1989,19 +1989,17 @@ export default function App() {
               </strong>
             </div>
             <div className="field-mobile-pill">
-              <span className="field-mobile-pill-label">Hedef</span>
-              <strong className="truncate text-xs text-white">{targetSummaryLabel}</strong>
-            </div>
-            <div className="field-mobile-pill">
-              <span className="field-mobile-pill-label">Mesafe</span>
-              <strong className="truncate text-xs text-cyan-200">{liveDistanceDetail.val} {liveDistanceDetail.unit}</strong>
+              <span className="field-mobile-pill-label">Durum</span>
+              <strong className={`truncate text-xs ${currentQuality.ok ? 'text-emerald-300' : 'text-amber-300'}`}>
+                {currentQuality.ok ? 'Olcume hazir' : 'Kaliteyi kontrol et'}
+              </strong>
             </div>
           </div>
         </div>
       </header>
 
       {/* --- MAIN DASHBOARD --- */}
-      <main className="field-main flex-1 overflow-y-auto lg:overflow-hidden p-3 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] lg:p-6 scroll-y-touch">
+      <main className="field-main flex-1 overflow-y-auto lg:overflow-hidden p-3 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] lg:p-6 scroll-y-touch">
         <div className="max-w-7xl mx-auto w-full min-h-full lg:h-full flex flex-col lg:flex-row gap-4 lg:gap-6">
           
           {/* SECTION DRAWER (conditional overlay, replaces old left panel) */}
@@ -2013,7 +2011,7 @@ export default function App() {
           >
             <aside
               onClick={e => e.stopPropagation()}
-              className="field-control-dock absolute inset-x-0 bottom-0 h-[78dvh] w-full max-w-full bg-slate-900/97 border-t border-slate-800 shadow-2xl flex flex-col rounded-t-[28px] sm:left-0 sm:top-0 sm:bottom-0 sm:h-auto sm:w-[400px] sm:rounded-none sm:border-t-0 sm:border-r"
+              className="field-control-dock absolute inset-x-0 bottom-0 h-[72dvh] w-full max-w-full bg-slate-900/97 border-t border-slate-800 shadow-2xl flex flex-col rounded-t-[28px] sm:left-0 sm:top-0 sm:bottom-0 sm:h-auto sm:w-[400px] sm:rounded-none sm:border-t-0 sm:border-r"
               role="dialog"
               aria-modal="true"
             >
@@ -2570,7 +2568,7 @@ export default function App() {
           <div className="field-stage w-full lg:flex-1 flex flex-col gap-3 lg:gap-4 lg:min-h-0 order-first lg:order-last">
             
             {/* Main Map with Overlay */}
-            <div className={`field-map-stage w-full h-[56dvh] sm:h-[60dvh] lg:h-auto lg:flex-1 min-h-[360px] relative overflow-hidden ${guidanceReady ? statusUI.bg : ''} transition-all duration-500`}>
+            <div className={`field-map-stage w-full h-[58dvh] sm:h-[60dvh] lg:h-auto lg:flex-1 min-h-[360px] relative overflow-hidden ${guidanceReady ? statusUI.bg : ''} transition-all duration-500`}>
               
               <div className="absolute inset-0 z-0">
                 <MapView 
@@ -2586,7 +2584,7 @@ export default function App() {
               </div>
 
               <div className="field-map-status absolute top-3 left-3 z-[1000] pointer-events-none">
-                <div className="field-hud-card max-w-[220px]">
+                <div className="field-hud-card max-w-[210px]">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="field-hud-label">Baglanti</p>
@@ -2607,7 +2605,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="field-map-target absolute left-3 right-20 bottom-3 sm:right-auto sm:max-w-[320px] z-[1000] pointer-events-none">
+              <div className="field-map-target absolute left-3 right-18 bottom-3 sm:right-auto sm:max-w-[300px] z-[1000] pointer-events-none">
                 <div className="field-hud-card">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -2674,7 +2672,7 @@ export default function App() {
             </div>
 
             {/* Metrics Grid (Fixed height at bottom) */}
-            <div className="field-metrics grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 shrink-0">
+            <div className="field-metrics grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 shrink-0">
               {pointStakeoutMode ? (
                 // ---------------- POINT STAKEOUT MODE ---------------- 
                 <>
@@ -2742,7 +2740,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="sm:hidden -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide">
+            <div className="sm:hidden -mx-1 flex gap-3 overflow-x-auto px-1 pb-1 scrollbar-hide">
               <div className="field-mobile-debug-card">
                 <span className="field-mobile-pill-label">QUALITY</span>
                 <strong className={metrics.qualityOk ? 'text-emerald-300' : 'text-amber-300'}>{ACCURACY_MODE_LABELS[metrics.qualityMode]}</strong>

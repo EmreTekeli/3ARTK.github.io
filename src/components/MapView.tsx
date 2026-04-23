@@ -531,7 +531,7 @@ function RecenterButton({ currentPoint }: { currentPoint: NMEAData | null }) {
           map.setView([currentPoint.lat, currentPoint.lon], 21, { animate: true });
         }
       }}
-      className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-[1000] bg-slate-950/78 backdrop-blur-xl px-3 py-3 rounded-2xl shadow-xl border border-white/12 hover:bg-slate-900/88 transition-all text-cyan-100 hover:text-cyan-300 focus:outline-none"
+      className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-[1000] bg-slate-950/64 backdrop-blur-xl px-3 py-3 rounded-2xl shadow-lg border border-white/10 hover:bg-slate-900/82 transition-all text-cyan-100 hover:text-cyan-300 focus:outline-none"
       title="Mevcut Konuma Odaklan"
     >
       <Navigation className="w-5 h-5 fill-current" />
@@ -609,10 +609,10 @@ function MapView({
               e.stopPropagation();
               onToggleSurfaceLayer(!showSurfaceLayer);
             }}
-            className={`absolute top-4 left-14 z-[1000] px-3 py-2 rounded-2xl shadow-xl border text-[11px] uppercase tracking-[0.18em] font-bold backdrop-blur-xl transition-all ${
+            className={`absolute top-4 left-14 z-[1000] px-3 py-2 rounded-2xl shadow-lg border text-[10px] uppercase tracking-[0.16em] font-bold backdrop-blur-xl transition-all ${
               showSurfaceLayer
-                ? 'bg-emerald-500/88 text-white border-emerald-300'
-                : 'bg-slate-950/78 text-slate-200 border-white/12 hover:bg-slate-900/88'
+                ? 'bg-emerald-500/78 text-white border-emerald-300/80'
+                : 'bg-slate-950/64 text-slate-200 border-white/10 hover:bg-slate-900/82'
             }`}
             title="Eğim düzeltmeli proje noktalarını göster"
           >

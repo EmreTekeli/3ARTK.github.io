@@ -259,7 +259,7 @@ async function startServer() {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
       "style-src 'self' 'unsafe-inline'; " +
       "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.opentopomap.org; " +
-      "connect-src 'self' ws: wss:; " +
+      "connect-src 'self' ws: wss: https://*.tile.openstreetmap.org https://*.tile.opentopomap.org; " +
       "worker-src blob:; " +
       "font-src 'self' data:"
     );

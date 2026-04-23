@@ -531,7 +531,7 @@ function RecenterButton({ currentPoint }: { currentPoint: NMEAData | null }) {
           map.setView([currentPoint.lat, currentPoint.lon], 21, { animate: true });
         }
       }}
-      className="absolute bottom-6 right-6 z-[1000] bg-white p-3 rounded-full shadow-xl border border-slate-200 hover:bg-slate-50 transition-all text-slate-700 hover:text-sky-600 focus:outline-none"
+      className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-[1000] bg-slate-950/78 backdrop-blur-xl px-3 py-3 rounded-2xl shadow-xl border border-white/12 hover:bg-slate-900/88 transition-all text-cyan-100 hover:text-cyan-300 focus:outline-none"
       title="Mevcut Konuma Odaklan"
     >
       <Navigation className="w-5 h-5 fill-current" />
@@ -609,10 +609,10 @@ function MapView({
               e.stopPropagation();
               onToggleSurfaceLayer(!showSurfaceLayer);
             }}
-            className={`absolute top-4 left-14 z-[1000] px-3 py-2 rounded-xl shadow-xl border text-xs font-bold transition-all ${
+            className={`absolute top-4 left-14 z-[1000] px-3 py-2 rounded-2xl shadow-xl border text-[11px] uppercase tracking-[0.18em] font-bold backdrop-blur-xl transition-all ${
               showSurfaceLayer
-                ? 'bg-emerald-500 text-white border-emerald-300'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                ? 'bg-emerald-500/88 text-white border-emerald-300'
+                : 'bg-slate-950/78 text-slate-200 border-white/12 hover:bg-slate-900/88'
             }`}
             title="Eğim düzeltmeli proje noktalarını göster"
           >

@@ -39,7 +39,7 @@ import MapView from './components/MapView';
 interface LogEntry {
   id: string;
   timestamp: string;
-  type: 'INFO' | 'NMEA' | 'CALC' | 'API' | 'ERROR';
+  type: 'INFO' | 'WARN' | 'NMEA' | 'CALC' | 'API' | 'ERROR';
   message: string;
   details?: string;
 }
@@ -1793,19 +1793,42 @@ export default function App() {
   const activeGuidancePoint = pointStakeoutMode ? slopeCorrectedTarget : referencePoint;
   const guidanceReady = isConnected && (pointStakeoutMode ? Boolean(selectedNCNTarget) : Boolean(referencePoint && targetDistance > 0));
   const currentQuality = evaluateRtkQuality(currentPoint, accuracyMode, metrics.residualRMS, metrics.surfaceCorrected);
+  const currentFixInfo = currentPoint ? displayFixLabel((currentPoint as any).fix ?? 1, connectionType) : null;
   const connectionTitle =
     connectionType === 'SIMULATOR' ? 'Telefon GPS' :
     connectionType === 'ANDROID_BT' ? 'Android SPP' :
     connectionType === 'SERIAL' ? 'COM Port' :
     connectionType === 'BLE' ? 'BLE' : 'Bagli degil';
+  const targetSummaryLabel = pointStakeoutMode
+    ? (selectedNCNTarget?.name || 'Nokta sec')
+    : `${targetDistance.toFixed(2)} m hedef`;
+  const liveDistanceValue = pointStakeoutMode ? metrics.plane2dDistance : metrics.surface3dDistance;
+  const liveDistanceDetail = formatDistanceDetail(liveDistanceValue);
+  const sectionActions = [
+    { key: 'connection' as SectionKey, icon: Plug, label: 'Baglanti', accent: isConnected ? 'emerald' : 'slate', dot: isConnected ? 'bg-emerald-400' : 'bg-slate-600' },
+    { key: 'pole' as SectionKey, icon: Ruler, label: 'Jalon', accent: 'indigo', dot: 'bg-indigo-400' },
+    { key: 'accuracy' as SectionKey, icon: Gauge, label: 'Hassasiyet', accent: currentQuality.ok ? 'emerald' : 'amber', dot: currentQuality.ok ? 'bg-emerald-400' : 'bg-amber-400' },
+    { key: 'rtk' as SectionKey, icon: Radio, label: 'RTK', accent: rtkActive ? 'emerald' : 'slate', dot: rtkActive ? 'bg-emerald-400' : 'bg-slate-600' },
+    { key: 'p1' as SectionKey, icon: MapPin, label: 'P1', accent: referencePoint ? 'sky' : 'slate', dot: referencePoint ? 'bg-sky-400' : 'bg-slate-600' },
+    { key: 'target' as SectionKey, icon: Target, label: 'Hedef', accent: guidanceReady ? 'emerald' : 'slate', dot: guidanceReady ? 'bg-emerald-400' : 'bg-slate-600' },
+  ] as const;
+  const getSectionTone = (active: boolean, accent: 'emerald' | 'slate' | 'indigo' | 'amber' | 'sky') => {
+    if (!active) return 'bg-slate-900/80 border-slate-800 text-slate-400';
+    if (accent === 'emerald') return 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200';
+    if (accent === 'indigo') return 'bg-indigo-500/15 border-indigo-500/40 text-indigo-200';
+    if (accent === 'amber') return 'bg-amber-500/15 border-amber-500/40 text-amber-200';
+    if (accent === 'sky') return 'bg-sky-500/15 border-sky-500/40 text-sky-200';
+    return 'bg-slate-800/90 border-slate-700 text-slate-100';
+  };
 
   return (
     <div className="field-ui h-dvh min-h-dvh text-stone-100 font-sans selection:bg-cyan-400/25 flex flex-col overflow-hidden safe-x">
       
       {/* --- TOP NAVIGATION --- */}
       <header className="field-topbar shrink-0 z-40 safe-top">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4">
+          <div className="h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
             <div className="field-brand-mark w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center relative overflow-hidden">
               <svg viewBox="0 0 40 40" className="w-9 h-9" fill="none" aria-hidden="true">
                 <defs>
@@ -1837,7 +1860,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-end gap-0.5 sm:gap-2 min-w-0 overflow-x-auto scrollbar-hide">
+          <div className="hidden sm:flex items-center justify-end gap-0.5 sm:gap-2 min-w-0 overflow-x-auto scrollbar-hide">
             {/* Section toolbar: 6 quick-access panel icons */}
             {([
               { key: 'connection' as SectionKey, icon: Plug, label: 'Bağlantı',
@@ -1931,11 +1954,54 @@ export default function App() {
             
             {/* Connect Button Dropdown REMOVED FROM HERE, MOVED TO STEP 1 */}
           </div>
+
+          <div className="flex sm:hidden items-center gap-2">
+            {accuracyMode === 'TEST' && (
+              <button
+                onClick={() => setShowCalibration(true)}
+                className="w-10 h-10 bg-indigo-500/10 hover:bg-indigo-500/20 active:bg-indigo-500/30 rounded-2xl border border-indigo-500/30 transition-all text-indigo-400 flex items-center justify-center active:scale-95"
+                title="Cihaz Kalibrasyonu"
+                aria-label="Cihaz Kalibrasyonu"
+              >
+                <Ruler className="w-5 h-5" />
+              </button>
+            )}
+            <button
+              onClick={() => setShowLogs(true)}
+              className="w-10 h-10 bg-slate-800/80 rounded-2xl hover:bg-slate-700 active:bg-slate-600 border border-slate-700 transition-all flex items-center justify-center active:scale-95"
+              title="Sistem Loglari"
+              aria-label="Sistem Loglari"
+            >
+              <Terminal className="w-5 h-5 text-slate-300" />
+            </button>
+          </div>
+          </div>
+
+          <div className="field-mobile-strip sm:hidden pb-3">
+            <div className="field-mobile-pill">
+              <span className="field-mobile-pill-label">Baglanti</span>
+              <strong className="truncate text-xs text-white">{connectionTitle}</strong>
+            </div>
+            <div className="field-mobile-pill">
+              <span className="field-mobile-pill-label">Fix</span>
+              <strong className="truncate text-xs" style={{ color: currentFixInfo?.color || '#e2e8f0' }}>
+                {currentFixInfo?.label || 'GPS bekleniyor'}
+              </strong>
+            </div>
+            <div className="field-mobile-pill">
+              <span className="field-mobile-pill-label">Hedef</span>
+              <strong className="truncate text-xs text-white">{targetSummaryLabel}</strong>
+            </div>
+            <div className="field-mobile-pill">
+              <span className="field-mobile-pill-label">Mesafe</span>
+              <strong className="truncate text-xs text-cyan-200">{liveDistanceDetail.val} {liveDistanceDetail.unit}</strong>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* --- MAIN DASHBOARD --- */}
-      <main className="field-main flex-1 overflow-y-auto lg:overflow-hidden p-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] lg:p-6 scroll-y-touch">
+      <main className="field-main flex-1 overflow-y-auto lg:overflow-hidden p-3 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] lg:p-6 scroll-y-touch">
         <div className="max-w-7xl mx-auto w-full min-h-full lg:h-full flex flex-col lg:flex-row gap-4 lg:gap-6">
           
           {/* SECTION DRAWER (conditional overlay, replaces old left panel) */}
@@ -1947,7 +2013,7 @@ export default function App() {
           >
             <aside
               onClick={e => e.stopPropagation()}
-              className="field-control-dock absolute left-0 top-0 bottom-0 w-full sm:w-[400px] max-w-full bg-slate-900/97 border-r border-slate-800 shadow-2xl flex flex-col"
+              className="field-control-dock absolute inset-x-0 bottom-0 h-[78dvh] w-full max-w-full bg-slate-900/97 border-t border-slate-800 shadow-2xl flex flex-col rounded-t-[28px] sm:left-0 sm:top-0 sm:bottom-0 sm:h-auto sm:w-[400px] sm:rounded-none sm:border-t-0 sm:border-r"
               role="dialog"
               aria-modal="true"
             >
@@ -2504,7 +2570,7 @@ export default function App() {
           <div className="field-stage w-full lg:flex-1 flex flex-col gap-3 lg:gap-4 lg:min-h-0 order-first lg:order-last">
             
             {/* Main Map with Overlay */}
-            <div className={`field-map-stage w-full h-[48dvh] sm:h-[55dvh] lg:h-auto lg:flex-1 min-h-[320px] relative overflow-hidden ${guidanceReady ? statusUI.bg : ''} transition-all duration-500`}>
+            <div className={`field-map-stage w-full h-[56dvh] sm:h-[60dvh] lg:h-auto lg:flex-1 min-h-[360px] relative overflow-hidden ${guidanceReady ? statusUI.bg : ''} transition-all duration-500`}>
               
               <div className="absolute inset-0 z-0">
                 <MapView 
@@ -2517,6 +2583,45 @@ export default function App() {
                   onToggleSurfaceLayer={setShowSurfaceLayer}
                   onSelectPoint={handleSelectPoint}
                 />
+              </div>
+
+              <div className="field-map-status absolute top-3 left-3 z-[1000] pointer-events-none">
+                <div className="field-hud-card max-w-[220px]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="field-hud-label">Baglanti</p>
+                      <p className="field-hud-value truncate">{connectionTitle}</p>
+                    </div>
+                    <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-slate-500'}`} aria-hidden="true" />
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="field-hud-chip">
+                      <span className="field-hud-chip-label">FIX</span>
+                      <strong style={{ color: currentFixInfo?.color || '#e2e8f0' }}>{currentFixInfo?.label || 'Bekleniyor'}</strong>
+                    </div>
+                    <div className="field-hud-chip">
+                      <span className="field-hud-chip-label">MOD</span>
+                      <strong>{pointStakeoutMode ? 'Nokta' : 'Mesafe'}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="field-map-target absolute left-3 right-20 bottom-3 sm:right-auto sm:max-w-[320px] z-[1000] pointer-events-none">
+                <div className="field-hud-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="field-hud-label">{pointStakeoutMode ? 'Aktif Hedef' : 'Olcum Hedefi'}</p>
+                      <p className="truncate text-sm font-bold text-white">{targetSummaryLabel}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="field-hud-label">{pointStakeoutMode ? 'Kalan' : 'Mesafe'}</p>
+                      <p className="text-sm font-black text-cyan-200">
+                        {liveDistanceDetail.val} <span className="text-[10px] text-cyan-100/60">{liveDistanceDetail.unit}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Vertical Distance Progress Bar */}
@@ -2637,8 +2742,26 @@ export default function App() {
               )}
             </div>
 
+            <div className="sm:hidden -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide">
+              <div className="field-mobile-debug-card">
+                <span className="field-mobile-pill-label">QUALITY</span>
+                <strong className={metrics.qualityOk ? 'text-emerald-300' : 'text-amber-300'}>{ACCURACY_MODE_LABELS[metrics.qualityMode]}</strong>
+                <p className="truncate text-[11px] text-slate-400">{metrics.qualityReason}</p>
+              </div>
+              <div className="field-mobile-debug-card">
+                <span className="field-mobile-pill-label">P1</span>
+                <strong className="text-white">{referencePoint ? 'Hazir' : 'Bekleniyor'}</strong>
+                <p className="truncate text-[11px] text-slate-400">{referencePoint ? `${referencePoint.lat.toFixed(5)}, ${referencePoint.lon.toFixed(5)}` : 'Referans secilmedi'}</p>
+              </div>
+              <div className="field-mobile-debug-card">
+                <span className="field-mobile-pill-label">SURFACE</span>
+                <strong className={metrics.surfaceCorrected ? 'text-cyan-200' : 'text-slate-300'}>{metrics.surfaceCorrected ? `${metrics.slopeDeg.toFixed(1)} deg` : 'Pasif'}</strong>
+                <p className="truncate text-[11px] text-slate-400">{metrics.surfaceCorrected ? `${metrics.surfacePointsUsed} nokta | RMS ${(metrics.residualRMS * 1000).toFixed(0)} mm` : 'En az 3 nokta gerekli'}</p>
+              </div>
+            </div>
+
             {/* Debug Info Footer */}
-            <div className="field-debug-strip rounded-xl p-3 text-[10px] sm:text-xs font-mono text-stone-400 flex flex-col sm:flex-row sm:justify-between gap-2 shrink-0">
+            <div className="field-debug-strip hidden sm:flex rounded-xl p-3 text-[10px] sm:text-xs font-mono text-stone-400 flex-col sm:flex-row sm:justify-between gap-2 shrink-0">
               <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-ellipsis">
                 <span className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400 font-bold">QUALITY</span>
                 <span className={`${metrics.qualityOk ? 'text-emerald-400' : 'text-amber-400'} truncate`}>
@@ -2716,6 +2839,30 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      <div className="field-mobile-nav sm:hidden">
+        <div className="field-mobile-nav-inner safe-bottom">
+          {sectionActions.map(({ key, icon: Icon, label, accent, dot }) => {
+            const active = activeSection === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveSection(prev => (prev === key ? null : key))}
+                className={`field-mobile-nav-button ${getSectionTone(active, accent)}`}
+                aria-label={label}
+                aria-pressed={active}
+              >
+                <span className="relative flex items-center justify-center">
+                  <Icon className="w-4 h-4" />
+                  <span className={`absolute -top-1.5 -right-1.5 w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden="true" />
+                </span>
+                <span className="mt-1 text-[10px] font-semibold">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* --- NOTIFICATION TOAST --- */}
       {notification && (
@@ -2915,6 +3062,7 @@ export default function App() {
                       </span>
                       <span className={`shrink-0 font-bold w-12 ${
                         log.type === 'NMEA' ? 'text-emerald-400' :
+                        log.type === 'WARN' ? 'text-amber-400' :
                         log.type === 'CALC' ? 'text-purple-400' :
                         log.type === 'API' ? 'text-sky-400' :
                         log.type === 'ERROR' ? 'text-rose-400' :

@@ -1999,7 +1999,7 @@ export default function App() {
       </header>
 
       {/* --- MAIN DASHBOARD --- */}
-      <main className="field-main flex-1 overflow-y-auto lg:overflow-hidden p-3 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] lg:p-6 scroll-y-touch">
+      <main className="field-main flex-1 overflow-y-auto lg:overflow-hidden p-3 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] lg:p-6 scroll-y-touch">
         <div className="max-w-7xl mx-auto w-full min-h-full lg:h-full flex flex-col lg:flex-row gap-4 lg:gap-6">
           
           {/* SECTION DRAWER (conditional overlay, replaces old left panel) */}
@@ -2887,7 +2887,7 @@ export default function App() {
                   <Icon className="w-4 h-4" />
                   <span className={`absolute -top-1.5 -right-1.5 w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden="true" />
                 </span>
-                <span className="mt-1 text-[10px] font-semibold">{label}</span>
+                <span className="mt-0.5 text-[9px] font-semibold leading-none">{label}</span>
               </button>
             );
           })}
